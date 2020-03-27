@@ -24,15 +24,6 @@ def run_query(json, headers): #Função que executa uma request pela api graphql
         raise Exception("Query failed to run by returning code of {}. {}".format(request.status_code, query))
 
 
-#Respostas das perguntas na Query:
-#Questão 1 - 
-#Questão 2 - 
-#Questão 3 - 
-#Questão 4 - 
-#Questão 5 - 
-#Questão 5 - 
-
-
 query = """
 query example{  
           user(login: "gvanrossum") {
@@ -69,37 +60,16 @@ query example{
 
 print("\n\n ------------- Começo da consulta com graphQL ------------- \n" )
 
-#finalQuery = query.replace("{AFTER}", "")
-
 
 json={"query": query}
 
 
-#total_pages = 1
-
 result = run_query(json, headers)
 
-#print(result)
+
 nodes = result['data']['user']['repositories']['nodes']
 totalRepos = str(result['data']['user']['repositories']['totalCount'])
 print("total repositorios encontrados = " + totalRepos + "\n")
-#next_page  = result["data"]["search"]["pageInfo"]["hasNextPage"]
-
-#paginating
-#while (next_page and total_pages < 50):
-#    total_pages += 1
-#    cursor = result["data"]["search"]["pageInfo"]["endCursor"]
-#    next_query = query.replace("{AFTER}", ", after: \"%s\"" % cursor)
-#    json["query"] = next_query
-#    result = run_query(json, headers)
-#    nodes += result['data']['search']['nodes']
-#    next_page  = result["data"]["search"]["pageInfo"]["hasNextPage"]
-
-
-#print("\n\n ------------- Retorno da consulta com graphQL para responder as Questões de 1 a 6 ------------- \n" )
-#print(nodes)
-
-#saving data
 
 if os.path.exists("repos.csv"):
   os.remove("repos.csv")
@@ -139,24 +109,7 @@ for node in nodes:
             print("\n" + "Limpeza da pasta do Repositório: ")
           print("repo_path = " + repo_path)
           numRepo += 1
-          #print("\n" + "Comeca limpeza")
-          #cleanRepository(repo_path)
           time.sleep(1)
-          #if os.path.exists("Repository/.git"):
-           # print("\n entrou no if do apagar")
-            #for root, dirs, files in os.walk('Repository/.git'):
-             # for fname in files:
-              #  full_path = os.path.join(root, fname)
-               # print("\n Tentando apagar o " + full_path)
-                #os.chmod(full_path, stat.S_IWRITE)
-                #os.remove(full_path)      
-              #for dir in dirs:
-               # full_path = os.path.join(root, dir)
-                #subprocess.check_call(('attrib -R ' + full_path + '\\* /S').split())
-                #cleanRepository(full_path)
-            #cleanRepository("Repository/.git")
-            #cleanRepository("Repository/.git/objects/pack")
-          #cleanRepository(repo_path)
           totalLoc = 0
           gitURL = node['url'] + ".git"
           print("\n" + "Começa o git clone")

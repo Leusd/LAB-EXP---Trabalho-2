@@ -10,7 +10,7 @@ from radon.raw import analyze
 from pygit2 import clone_repository
 
 
-headers = {"Authorization": "Bearer Your key here"}
+headers = {"Authorization": "Bearer YOUR KEY HERER"}
 
 
 def run_query(json, headers): #Função que executa uma request pela api graphql 

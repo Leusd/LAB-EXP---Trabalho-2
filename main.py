@@ -6,33 +6,39 @@ import time
 import requests
 from radon.raw import analyze
 from pygit2 import clone_repository
+import threading
 
-headers = {"Authorization": "Bearer 9a1175f6b32c38aa63ce9ff65d07b8c9d026e775 "}
+global totalLoc
 
+TIME_LIMIT_TO_FIND_LOC = 900 #seconds
+TIMESLEEP = 60 #seconds
 
-def run_query(json, headers):  # Função que executa uma request pela api graphql
+headers = {"Authorization": "Bearer YOUR KEY HERER"}
+
+# Run an api graphql request
+def run_query(json, headers):  
     request = requests.post('https://api.github.com/graphql', json=json, headers=headers)
     while (request.status_code == 502):
         time.sleep(2)
         request = requests.post('https://api.github.com/graphql', json=json, headers=headers)
     if request.status_code == 200:
-        return request.json()  # json que retorna da requisição
+        return request.json()  # json returned by request
     else:
         raise Exception("Query failed to run by returning code of {}. {}".format(request.status_code, query))
 
-
+#handle error in function clean_repository(folder) 
 def on_rm_error(func, path, exc_info):
     # path contains the path of the file that couldn't be removed
     # let's just assume that it's read-only and unlink it.
     os.chmod(path, stat.S_IWRITE)
     os.unlink(path)
 
-
+#clean local repository folder 
 def clean_repository(folder):
     for filename in os.listdir(folder):
         file_path = os.path.join(folder, filename)
         try:
-            if not ".git" in filename:
+            if not ".git" in filename: #to avoid error
                 if os.path.isfile(file_path) or os.path.islink(file_path):
                     os.unlink(file_path)
                 elif os.path.isdir(file_path):
@@ -40,7 +46,7 @@ def clean_repository(folder):
         except Exception as e:
             print('Failed to delete %s. Reason: %s' % (file_path, e))
 
-
+#How many rows are already written in final.csv
 def where_stop():
     row = 0
     if os.path.exists("final.csv"):
@@ -49,14 +55,40 @@ def where_stop():
         fileFinal.close()
     return row
 
+#Insert row in final.csv
+def writeInFinalFile(node, totalLoc):
+    fileFinal = open("final.csv", 'a', newline='')
+    final = csv.writer(fileFinal)
+    final.writerow((node[0], node[1],  node[2], node[3], node[4], node[5], node[6], node[7], str(totalLoc)))
+    fileFinal.close()
 
+#Clone repository and read files to count LOC
+def cloneAndReadFileAndGetLoc(gitURL, repo_path, node):
+    clone_repository(gitURL, repo_path)
+    print("Git clone finalizado. \nLendo arquivos do Repositório e calculando LOC.....")
+    global totalLoc
+    totalLoc = 0
+    for root, dirs, files in os.walk(repo_path):
+        for file in files:
+            if file.endswith('.py'):
+                fullpath = os.path.join(root, file)
+                with open(fullpath, encoding="utf8") as f:
+                    content = f.read()
+                    b = analyze(content)
+                    i = 0
+                    for item in b:
+                        if i == 0:
+                            totalLoc += item
+                            i += 1
+
+#Create base.csv
 if not os.path.exists("base.csv"):
-    print("Iniciando processo")
+    print("\n -------------- Iniciando processo pesquisa GraphQl -------------- \n")
 
-    # Query do GraphQL que procura os primeiros 1000 repositorios com mais de 100 estrelas.
+    # Query GraphQL to look for first 1000 repositories in Python over 100 stars
     query = """
     query example{
-      search (query:"stars:>100 and language:Python", type: REPOSITORY, first:20{AFTER}) {
+      search (query:"stars:>100 and language:Python", type: REPOSITORY, first:10{AFTER}) {
           pageInfo{
            hasNextPage
             endCursor
@@ -64,9 +96,6 @@ if not os.path.exists("base.csv"):
           nodes {
             ... on Repository {
               nameWithOwner
-                  owner {
-                    login
-                    }
                   url
                   stargazers {
                     totalCount
@@ -98,12 +127,12 @@ if not os.path.exists("base.csv"):
 
     total_pages = 1
     print("Executando Query\n[", end='')
-    result = run_query(json, headers)  # Executar a Query
-    nodes = result["data"]["search"]["nodes"]  # separar a string para exibir apenas os nodes
+    result = run_query(json, headers)  # Run Query
+    nodes = result["data"]["search"]["nodes"]  # split string to show only the nodes
     next_page = result["data"]["search"]["pageInfo"]["hasNextPage"]
 
     page = 0
-    while next_page and total_pages < 50:
+    while next_page and total_pages < 10:
         total_pages += 1
         cursor = result["data"]["search"]["pageInfo"]["endCursor"]
         next_query = query.replace("{AFTER}", ", after: \"%s\"" % cursor)
@@ -114,15 +143,14 @@ if not os.path.exists("base.csv"):
         print(".", end='')
     print("]")
 
-    print("Criando arquivo CSV")
+    print("Criando arquivo base CSV")
     file = open("base.csv", 'w', newline='')
     repository = csv.writer(file)
 
     print("Salvando Repositorios:\n[", end='')
     num = 0
     for node in nodes:
-        # Adicionando dados de cada repositorio
-        repository.writerow((node['nameWithOwner'], node['owner']['login'], str(node['url']),
+        repository.writerow((node['nameWithOwner'], str(node['url']),
                              str(node['stargazers']['totalCount']), str(node['watchers']['totalCount']),
                              str(node['forks']['totalCount']), str(node['releases']['totalCount']),
                              node['createdAt'], node['primaryLanguage']['name']))
@@ -132,61 +160,60 @@ if not os.path.exists("base.csv"):
     print("]\nProcesso concluido")
     file.close()
 
-print("\n ------ Começo leitura repositorios ------ \n")
+
+print("\n ------------------- Começo leitura repositorios ------------------- \n")
 
 numRepo = 0
+contNode = 0
+totalLoc = 0
+lastLine = where_stop()
+
+print("lastLine: " + str(lastLine) + "\n")
+
+#Insert table header in final.csv
+if not os.path.exists("final.csv"):
+    fileFinal = open("final.csv", 'w', newline='')
+    final = csv.writer(fileFinal)
+    final.writerow(('nameWithOwner', 'url', 'stargazers/totalCount', 'watchers/totalCount',
+                    'forks/totalCount', 'releases/totalCount', 'createdAt', 'primaryLanguage/name', "totalLOC"))
+    fileFinal.close()
+
 
 fileBase = open("base.csv", 'r')
 base = csv.reader(fileBase)
 
-lastLine = where_stop()
-
-fileFinal = open("final.csv", 'w', newline='')
-final = csv.writer(fileFinal)
-
-if lastLine == 0:
-    final.writerow(('nameWithOwner', 'owner/login', 'url', 'stargazers/totalCount', 'watchers/totalCount',
-                    'forks/totalCount', 'releases/totalCount', 'createdAt', 'primaryLanguage/name', "totalLOC"))
-
 for node in base:
-    if numRepo - 1 >= lastLine:
+    if (contNode >= lastLine-1):
         repo_path = 'Repository/' + str(numRepo)
-        if os.path.exists(repo_path):
-            clean_repository(repo_path)
-            print("\n" + "Limpeza da pasta do Repositório: ")
-        print("repo_path = " + repo_path)
-        numRepo = numRepo + 1
-        time.sleep(1)
-        totalLoc = 0
-        gitURL = node[2] + ".git"
-        print("\n" + "Começa o git clone")
+        while os.path.exists(repo_path):
+            if totalLoc != -1: #to avoid possible error
+                clean_repository(repo_path)
+            numRepo += 1
+            repo_path = 'Repository/' + str(numRepo)
+        print(" ----- Inicio " + repo_path + " ----- \n")
+        gitURL = node[1] + ".git"
+        print("Começa o git clone")
         print(gitURL)
-        repo = clone_repository(gitURL, repo_path)
-        print("Termina o git clone \n")
-        for root, dirs, files in os.walk(repo_path):
-            for file in files:
-                if file.endswith('.py'):
-                    fullpath = os.path.join(root, file)
-                    with open(fullpath, encoding="utf8") as f:
-                        content = f.read()
-                        print("\nLendo arquivo " + fullpath)
-                        b = analyze(content)
-                        print(b)
-                        i = 0
-                        for item in b:
-                            if i == 0:
-                                totalLoc += item
-                                print("loc = " + str(item))
-                                print("Total loc até agora: " + str(totalLoc))
-                                i += 1
-        print("\nTotal loc final para o repo " + node['nameWithOwner'] + " é " + str(totalLoc))
-        print("\n ------ Fim de um repositorio ------ \n")
-        clean_repository(repo_path)
-        final.writerow(node, totalLoc)
+      #setting timeout
+        clrd = threading.Thread(target=cloneAndReadFileAndGetLoc, args=(gitURL, repo_path, node))
+        clrd.daemon = True
+        clrd.start()
+        clrd.join(TIME_LIMIT_TO_FIND_LOC) # Wait for x seconds or until process finishes
+        if clrd.is_alive(): # If thread is still active
+            print("\n--> Excedeu limite de tempo. Interrompendo análise do repositório.....")
+            th = threading.currentThread()
+            th._stop
+            time.sleep(TIMESLEEP)
+            totalLoc = -1 # Define a negative value for LOC
+        print("Total loc final é " + str(totalLoc))
+        writeInFinalFile(node, totalLoc)
+        print("\n ------ Fim " + repo_path + " ------- \n")
+        if totalLoc != -1: #to avoid possible error
+            if os.path.exists(repo_path):
+                clean_repository(repo_path)
     else:
-        numRepo = numRepo + 1
-
-print("Total repositórios " + str(numRepo))
+        contNode +=1
+        
 fileBase.close()
-fileFinal.close()
-print("\n ------------- Fim da execução ------------- \n")
+
+print("\n ---------------------- Fim da execução ---------------------- \n")

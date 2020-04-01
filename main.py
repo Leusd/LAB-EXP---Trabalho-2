@@ -88,7 +88,7 @@ if not os.path.exists("base.csv"):
     # Query GraphQL to look for first 1000 repositories in Python over 100 stars
     query = """
     query example{
-      search (query:"stars:>100 and language:Python", type: REPOSITORY, first:10{AFTER}) {
+      search (query:"stars:>100 and language:Python", type: REPOSITORY, first:20{AFTER}) {
           pageInfo{
            hasNextPage
             endCursor
@@ -132,7 +132,7 @@ if not os.path.exists("base.csv"):
     next_page = result["data"]["search"]["pageInfo"]["hasNextPage"]
 
     page = 0
-    while next_page and total_pages < 10:
+    while next_page and total_pages < 50:
         total_pages += 1
         cursor = result["data"]["search"]["pageInfo"]["endCursor"]
         next_query = query.replace("{AFTER}", ", after: \"%s\"" % cursor)

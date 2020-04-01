@@ -13,7 +13,7 @@ global totalLoc
 TIME_LIMIT_TO_FIND_LOC = 900 #seconds
 TIMESLEEP = 60 #seconds
 
-headers = {"Authorization": "Bearer YOUR KEY HERER"}
+headers = {"Authorization": "Bearer 2923a7bb6503a76243408f5308a185ae9ff24c04"}
 
 # Run an api graphql request
 def run_query(json, headers):  
@@ -215,5 +215,6 @@ for node in base:
         contNode +=1
         
 fileBase.close()
+fileFinal.close()
 
 print("\n ---------------------- Fim da execução ---------------------- \n")

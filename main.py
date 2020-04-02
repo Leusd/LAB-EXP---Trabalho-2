@@ -10,7 +10,7 @@ import threading
 
 global totalLoc
 
-TIME_LIMIT_TO_FIND_LOC = 900 #seconds
+TIME_LIMIT_TO_FIND_LOC = 600 #seconds
 TIMESLEEP = 60 #seconds
 
 headers = {"Authorization": "Bearer 2923a7bb6503a76243408f5308a185ae9ff24c04"}
@@ -213,8 +213,8 @@ for node in base:
                 clean_repository(repo_path)
     else:
         contNode +=1
+        numRepo += 1
         
 fileBase.close()
-fileFinal.close()
 
 print("\n ---------------------- Fim da execução ---------------------- \n")
